@@ -11,7 +11,7 @@ const Navigation = () => {
     { name: "Works", href: "#works" },
     { name: "Videos", href: "#videos" },
     { name: "Contact", href: "#contact" },
-    { name: "Admin", href: "/admin/login", isExternal: true },
+    { name: "Admin", href: "/#/admin/login", isExternal: true },
   ];
 
   const scrollToSection = (href: string, isExternal?: boolean) => {
