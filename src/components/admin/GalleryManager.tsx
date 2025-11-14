@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { ref, push, remove } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { database, storage } from '@/lib/firebase';
 import { useGalleryImages } from '@/hooks/useFirebaseData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { Trash2, Upload } from 'lucide-react';
 
@@ -14,6 +15,8 @@ const GalleryManager = () => {
   const [newImage, setNewImage] = useState({ url: '', alt: '' });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingSize, setUploadingSize] = useState({ current: 0, total: 0 });
 
   const handleAdd = async () => {
     if (!imageFile && !newImage.url) {
@@ -26,14 +29,34 @@ const GalleryManager = () => {
     }
 
     setLoading(true);
+    setUploadProgress(0);
     try {
       let imageUrl = newImage.url;
 
-      // If file is uploaded, upload to Firebase Storage
+      // If file is uploaded, upload to Firebase Storage with progress tracking
       if (imageFile) {
         const fileRef = storageRef(storage, `gallery/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(fileRef, imageFile);
-        imageUrl = await getDownloadURL(fileRef);
+        const uploadTask = uploadBytesResumable(fileRef, imageFile);
+        
+        setUploadingSize({ current: 0, total: imageFile.size });
+
+        await new Promise((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+              setUploadingSize({
+                current: snapshot.bytesTransferred,
+                total: snapshot.totalBytes
+              });
+            },
+            (error) => reject(error),
+            () => resolve(null)
+          );
+        });
+
+        imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
       }
 
       await push(ref(database, 'gallery'), {
@@ -44,6 +67,8 @@ const GalleryManager = () => {
       toast.success('Image added successfully!');
       setNewImage({ url: '', alt: '' });
       setImageFile(null);
+      setUploadProgress(0);
+      setUploadingSize({ current: 0, total: 0 });
     } catch (error) {
       toast.error('Failed to add image');
     }
@@ -105,6 +130,20 @@ const GalleryManager = () => {
             />
           </div>
         </div>
+        {loading && imageFile && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Uploading...</span>
+              <span>
+                {(uploadingSize.current / 1024 / 1024).toFixed(2)} MB / {(uploadingSize.total / 1024 / 1024).toFixed(2)} MB
+              </span>
+            </div>
+            <Progress value={uploadProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center">
+              {uploadProgress.toFixed(0)}% complete
+            </p>
+          </div>
+        )}
         <Button 
           onClick={handleAdd} 
           disabled={loading}
