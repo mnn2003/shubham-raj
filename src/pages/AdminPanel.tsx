@@ -9,6 +9,7 @@ import ProfileManager from '@/components/admin/ProfileManager';
 import GalleryManager from '@/components/admin/GalleryManager';
 import WorksManager from '@/components/admin/WorksManager';
 import VideosManager from '@/components/admin/VideosManager';
+import ContactLeadsManager from '@/components/admin/ContactLeadsManager';
 
 const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
@@ -57,11 +58,12 @@ const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="gallery">Gallery</TabsTrigger>
             <TabsTrigger value="works">Works</TabsTrigger>
             <TabsTrigger value="videos">Videos</TabsTrigger>
+            <TabsTrigger value="leads">Leads</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -78,6 +80,10 @@ const AdminPanel = () => {
 
           <TabsContent value="videos">
             <VideosManager />
+          </TabsContent>
+
+          <TabsContent value="leads">
+            <ContactLeadsManager />
           </TabsContent>
         </Tabs>
       </div>
