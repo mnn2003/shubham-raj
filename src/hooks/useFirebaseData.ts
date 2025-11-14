@@ -152,3 +152,54 @@ export const useVideos = () => {
 
   return { videos, loading, error };
 };
+
+export interface ContactLead {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  timestamp: number;
+  status: 'new' | 'read';
+}
+
+export const useContactLeads = () => {
+  const [leads, setLeads] = useState<ContactLead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const contactsRef = ref(database, 'contacts');
+    
+    const unsubscribe = onValue(
+      contactsRef,
+      (snapshot) => {
+        try {
+          const data = snapshot.val();
+          if (data) {
+            const leadsList = Object.keys(data).map(key => ({
+              id: key,
+              ...data[key]
+            }));
+            // Sort by timestamp, newest first
+            leadsList.sort((a, b) => b.timestamp - a.timestamp);
+            setLeads(leadsList);
+          } else {
+            setLeads([]);
+          }
+          setLoading(false);
+        } catch (err) {
+          setError('Failed to load contact leads');
+          setLoading(false);
+        }
+      },
+      (err) => {
+        setError(err.message);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  return { leads, loading, error };
+};
