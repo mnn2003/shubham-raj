@@ -3,6 +3,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { ref, push } from 'firebase/database';
+import { database } from '@/lib/firebase';
+import { toast as sonnerToast } from 'sonner';
 
 const Contact = () => {
   const { toast } = useToast();
@@ -11,15 +14,29 @@ const Contact = () => {
     email: "",
     message: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Firebase integration will be added here
-    toast({
-      title: "Message Sent!",
-      description: "Thank you for reaching out. I'll get back to you soon.",
-    });
-    setFormData({ name: "", email: "", message: "" });
+    setSubmitting(true);
+    
+    try {
+      await push(ref(database, 'contacts'), {
+        ...formData,
+        timestamp: Date.now(),
+        status: 'new'
+      });
+      
+      toast({
+        title: "Message Sent!",
+        description: "Thank you for reaching out. I'll get back to you soon.",
+      });
+      sonnerToast.success('Your message has been sent successfully!');
+      setFormData({ name: "", email: "", message: "" });
+    } catch (error) {
+      sonnerToast.error('Failed to send message. Please try again.');
+    }
+    setSubmitting(false);
   };
 
   return (
@@ -76,9 +93,10 @@ const Contact = () => {
             </div>
             <Button
               type="submit"
+              disabled={submitting}
               className="w-full h-14 bg-gradient-primary hover:shadow-glow transition-all duration-300 text-primary-foreground font-bold text-lg rounded-xl hover:scale-[1.02]"
             >
-              Send Message
+              {submitting ? 'Sending...' : 'Send Message'}
             </Button>
           </form>
         </div>
