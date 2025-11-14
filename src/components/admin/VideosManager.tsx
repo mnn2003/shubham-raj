@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { ref, push, remove } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { database, storage } from '@/lib/firebase';
 import { useVideos } from '@/hooks/useFirebaseData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { Trash2, Upload } from 'lucide-react';
 
@@ -19,6 +20,8 @@ const VideosManager = () => {
   });
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingSize, setUploadingSize] = useState({ current: 0, total: 0 });
 
   const handleAdd = async () => {
     if (!newVideo.title || (!videoFile && !newVideo.embedUrl)) {
@@ -27,14 +30,34 @@ const VideosManager = () => {
     }
 
     setLoading(true);
+    setUploadProgress(0);
     try {
       let videoUrl = newVideo.embedUrl;
 
-      // If file is uploaded, upload to Firebase Storage
+      // If file is uploaded, upload to Firebase Storage with progress tracking
       if (videoFile) {
         const fileRef = storageRef(storage, `videos/${Date.now()}_${videoFile.name}`);
-        await uploadBytes(fileRef, videoFile);
-        videoUrl = await getDownloadURL(fileRef);
+        const uploadTask = uploadBytesResumable(fileRef, videoFile);
+        
+        setUploadingSize({ current: 0, total: videoFile.size });
+
+        await new Promise((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+              setUploadingSize({
+                current: snapshot.bytesTransferred,
+                total: snapshot.totalBytes
+              });
+            },
+            (error) => reject(error),
+            () => resolve(null)
+          );
+        });
+
+        videoUrl = await getDownloadURL(uploadTask.snapshot.ref);
       }
 
       await push(ref(database, 'videos'), {
@@ -46,6 +69,8 @@ const VideosManager = () => {
       toast.success('Video added successfully!');
       setNewVideo({ title: '', embedUrl: '', description: '' });
       setVideoFile(null);
+      setUploadProgress(0);
+      setUploadingSize({ current: 0, total: 0 });
     } catch (error) {
       toast.error('Failed to add video');
     }
@@ -113,6 +138,20 @@ const VideosManager = () => {
             />
           </div>
         </div>
+        {loading && videoFile && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Uploading...</span>
+              <span>
+                {(uploadingSize.current / 1024 / 1024).toFixed(2)} MB / {(uploadingSize.total / 1024 / 1024).toFixed(2)} MB
+              </span>
+            </div>
+            <Progress value={uploadProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center">
+              {uploadProgress.toFixed(0)}% complete
+            </p>
+          </div>
+        )}
         <Button 
           onClick={handleAdd} 
           disabled={loading}
